@@ -11,7 +11,7 @@ use std::fmt::{self, Display, Formatter};
 use thiserror::Error;
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum Command<'a> {
+pub enum Request<'a> {
     SetTimeout(u64),
     SetDesc(&'a str),
     SetKeyinfo(&'a str),
@@ -62,7 +62,7 @@ impl Display for Error {
 ///
 /// # Errors
 /// Will return an error if the input string is not a valid command.
-pub fn parse(s: &str) -> Result<Command<'_>, Error> {
+pub fn parse(s: &str) -> Result<Request<'_>, Error> {
     parse_command(s)
         .map(move |(_, c)| c)
         .map_err(move |e| match e {
@@ -74,15 +74,15 @@ pub fn parse(s: &str) -> Result<Command<'_>, Error> {
         })
 }
 
-fn parse_command(s: &str) -> IResult<&str, Command> {
+fn parse_command(s: &str) -> IResult<&str, Request> {
     let (s, (cmd, _)) = tuple((
         alt((
             parse_set,
             parse_get,
             parse_confirm,
             parse_option,
-            map(tag("MESSAGE"), |_| Command::Message),
-            map(tag("BYE"), |_| Command::Bye),
+            map(tag("MESSAGE"), |_| Request::Message),
+            map(tag("BYE"), |_| Request::Bye),
         )),
         eof,
     ))(s)?;
@@ -92,13 +92,13 @@ fn parse_command(s: &str) -> IResult<&str, Command> {
 macro_rules! gen_parse_set {
     ($x:expr) => {
         paste! {
-            fn [<parse_set_ $x:lower>](s: &str) -> IResult<&str, Command<'_>> {
+            fn [<parse_set_ $x:lower>](s: &str) -> IResult<&str, Request<'_>> {
                 let (rem, (_, _, arg)) = tuple((
                     tag($x),
                     space1,
                     not_line_ending,
                 ))(s)?;
-                Ok((rem, Command::[<Set $x:camel>](arg)))
+                Ok((rem, Request::[<Set $x:camel>](arg)))
             }
         }
     };
@@ -113,38 +113,38 @@ gen_parse_set!("NOTOK");
 gen_parse_set!("ERROR");
 gen_parse_set!("KEYINFO");
 
-fn parse_set_timeout(s: &str) -> IResult<&str, Command> {
+fn parse_set_timeout(s: &str) -> IResult<&str, Request> {
     let (rem, (_, _, arg)) = tuple((tag("TIMEOUT"), space1, u64))(s)?;
-    Ok((rem, Command::SetTimeout(arg)))
+    Ok((rem, Request::SetTimeout(arg)))
 }
 
-fn parse_set_repeat(s: &str) -> IResult<&str, Command> {
+fn parse_set_repeat(s: &str) -> IResult<&str, Request> {
     let (rem, _) = tag("REPEAT")(s)?;
-    Ok((rem, Command::SetRepeat))
+    Ok((rem, Request::SetRepeat))
 }
 
-fn parse_set_qualitybar(s: &str) -> IResult<&str, Command> {
+fn parse_set_qualitybar(s: &str) -> IResult<&str, Request> {
     let (s, _) = tag("QUALITYBAR")(s)?;
     let res: IResult<&str, &str> = tag("_TT")(s);
     match res {
         Ok((s, _)) => {
             let (s, (_, arg)) = tuple((space1, not_line_ending))(s)?;
-            Ok((s, Command::SetQualitybarTt(arg)))
+            Ok((s, Request::SetQualitybarTt(arg)))
         }
         Err(_) => {
             let res: IResult<&str, &str> = eof(s);
             match res {
-                Ok((s, _)) => Ok((s, Command::SetQualitybar(None))),
+                Ok((s, _)) => Ok((s, Request::SetQualitybar(None))),
                 Err(_) => {
                     let (s, (_, arg)) = tuple((space1, not_line_ending))(s)?;
-                    Ok((s, Command::SetQualitybar(Some(arg))))
+                    Ok((s, Request::SetQualitybar(Some(arg))))
                 }
             }
         }
     }
 }
 
-fn parse_set(s: &str) -> IResult<&str, Command> {
+fn parse_set(s: &str) -> IResult<&str, Request> {
     let (s, _) = tag("SET")(s)?;
     alt((
         parse_set_timeout,
@@ -161,42 +161,42 @@ fn parse_set(s: &str) -> IResult<&str, Command> {
     ))(s)
 }
 
-fn parse_get(s: &str) -> IResult<&str, Command> {
+fn parse_get(s: &str) -> IResult<&str, Request> {
     let (s, _) = tag("GET")(s)?;
     alt((
-        map(tag("PIN"), |_| Command::GetPin),
-        map(tag("INFO flavor"), |_| Command::GetInfoFlavor),
-        map(tag("INFO version"), |_| Command::GetInfoVersion),
-        map(tag("INFO ttyinfo"), |_| Command::GetInfoTtyinfo),
-        map(tag("INFO pid"), |_| Command::GetInfoPid),
+        map(tag("PIN"), |_| Request::GetPin),
+        map(tag("INFO flavor"), |_| Request::GetInfoFlavor),
+        map(tag("INFO version"), |_| Request::GetInfoVersion),
+        map(tag("INFO ttyinfo"), |_| Request::GetInfoTtyinfo),
+        map(tag("INFO pid"), |_| Request::GetInfoPid),
     ))(s)
 }
 
-fn parse_confirm(s: &str) -> IResult<&str, Command> {
+fn parse_confirm(s: &str) -> IResult<&str, Request> {
     let (s, _) = tag("CONFIRM")(s)?;
     let res: IResult<&str, &str> = tag(" --one-button")(s);
     Ok(match res {
-        Ok((s, _)) => (s, Command::ConfirmOneButton),
-        Err(_) => (s, Command::Confirm),
+        Ok((s, _)) => (s, Request::ConfirmOneButton),
+        Err(_) => (s, Request::Confirm),
     })
 }
 
-fn parse_option(s: &str) -> IResult<&str, Command> {
+fn parse_option(s: &str) -> IResult<&str, Request> {
     let (s, _) = tuple((tag("OPTION"), space1))(s)?;
     let res: IResult<&str, (&str, &str, &str)> =
         tuple((take_until("="), tag("="), not_line_ending))(s);
     Ok(match res {
-        Ok((s, (key, _, value))) => (s, Command::OptionKV(key, value)),
+        Ok((s, (key, _, value))) => (s, Request::OptionKV(key, value)),
         Err(_) => {
             let (s, key) = not_line_ending(s)?;
-            (s, Command::OptionBool(key))
+            (s, Request::OptionBool(key))
         }
     })
 }
 
 #[cfg(test)]
 mod test {
-    use super::Command::*;
+    use super::Request::*;
 
     #[test]
     fn parse_command() {
