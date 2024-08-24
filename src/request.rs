@@ -36,6 +36,13 @@ pub enum Request<'a> {
     GetInfoTtyinfo,
     GetInfoPid,
     Bye,
+    Reset,
+    End,
+    Help,
+    Quit,
+    Cancel,
+    Auth,
+    Nop,
 }
 
 #[derive(Debug, Error)]
@@ -81,6 +88,13 @@ fn parse_command(s: &str) -> IResult<&str, Request> {
             parse_option,
             map(tag("MESSAGE"), |_| Request::Message),
             map(tag("BYE"), |_| Request::Bye),
+            map(tag("RESET"), |_| Request::Reset),
+            map(tag("END"), |_| Request::End),
+            map(tag("HELP"), |_| Request::Help),
+            map(tag("QUIT"), |_| Request::Quit),
+            map(tag("CANCEL"), |_| Request::Cancel),
+            map(tag("AUTH"), |_| Request::Auth),
+            map(tag("NOP"), |_| Request::Nop),
         )),
         eof,
     ))(s)?;
@@ -239,6 +253,13 @@ mod test {
             ("SETKEYINFO dummy-key-grip", SetKeyinfo("dummy-key-grip")),
             ("GETPIN", GetPin),
             ("BYE", Bye),
+            ("RESET", Reset),
+            ("END", End),
+            ("HELP", Help),
+            ("QUIT", Quit),
+            ("CANCEL", Cancel),
+            ("AUTH", Auth),
+            ("NOP", Nop),
         ];
 
         for (input, expected) in test_cases {
