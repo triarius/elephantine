@@ -25,6 +25,8 @@ pub enum Request<'a> {
     SetRepeat,
     SetQualitybar(Option<&'a str>),
     SetQualitybarTt(&'a str),
+    SetGenpin(&'a str),
+    SetGenpinTt(&'a str),
     Confirm,
     ConfirmOneButton,
     Message,
@@ -124,6 +126,8 @@ gen_parse_set!("CANCEL");
 gen_parse_set!("NOTOK");
 gen_parse_set!("ERROR");
 gen_parse_set!("KEYINFO");
+gen_parse_set!("GENPIN");
+gen_parse_set!("GENPIN_TT");
 
 fn parse_set_timeout(s: &str) -> IResult<&str, Request> {
     let (rem, (_, _, arg)) = tuple((tag("TIMEOUT"), space1, u64))(s)?;
@@ -170,6 +174,8 @@ fn parse_set(s: &str) -> IResult<&str, Request> {
         parse_set_error,
         parse_set_repeat,
         parse_set_qualitybar,
+        parse_set_genpin,
+        parse_set_genpin_tt,
     ))(s)
 }
 
@@ -247,6 +253,8 @@ mod test {
             ("SETQUALITYBAR", SetQualitybar(None)),
             ("SETQUALITYBAR value", SetQualitybar(Some("value"))),
             ("SETQUALITYBAR_TT value", SetQualitybarTt("value")),
+            ("SETGENPIN value", SetGenpin("value")),
+            ("SETGENPIN_TT value", SetGenpinTt("value")),
             ("CONFIRM", Confirm),
             ("CONFIRM --one-button", ConfirmOneButton),
             ("MESSAGE", Message),
