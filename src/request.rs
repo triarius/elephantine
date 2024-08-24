@@ -2,36 +2,40 @@ use nom::{
     branch::alt,
     bytes::complete::{tag, take_till},
     character::complete::{not_line_ending, space0, space1, u64},
-    combinator::{eof, flat_map, map, opt},
+    combinator::{eof, flat_map, map, map_res, opt},
     error::Error as NomError,
     sequence::{preceded, separated_pair, tuple},
     IResult,
 };
 use paste::paste;
-use std::fmt::{self, Display, Formatter};
+use std::{
+    borrow::Cow,
+    fmt::{self, Display, Formatter},
+};
 use thiserror::Error;
+use urlencoding::decode;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Request<'a> {
     SetTimeout(u64),
-    SetDesc(&'a str),
-    SetKeyinfo(&'a str),
-    SetPrompt(&'a str),
-    SetTitle(&'a str),
-    SetOk(&'a str),
-    SetCancel(&'a str),
-    SetNotok(&'a str),
-    SetError(&'a str),
+    SetDesc(Cow<'a, str>),
+    SetKeyinfo(Cow<'a, str>),
+    SetPrompt(Cow<'a, str>),
+    SetTitle(Cow<'a, str>),
+    SetOk(Cow<'a, str>),
+    SetCancel(Cow<'a, str>),
+    SetNotok(Cow<'a, str>),
+    SetError(Cow<'a, str>),
     SetRepeat,
-    SetQualitybar(Option<&'a str>),
-    SetQualitybarTt(&'a str),
-    SetGenpin(&'a str),
-    SetGenpinTt(&'a str),
+    SetQualitybar(Option<Cow<'a, str>>),
+    SetQualitybarTt(Cow<'a, str>),
+    SetGenpin(Cow<'a, str>),
+    SetGenpinTt(Cow<'a, str>),
     Confirm,
     ConfirmOneButton,
     Message,
-    OptionBool(&'a str),
-    OptionKV(&'a str, &'a str),
+    OptionBool(Cow<'a, str>),
+    OptionKV(Cow<'a, str>, Cow<'a, str>),
     GetPin,
     GetInfoFlavor,
     GetInfoVersion,
@@ -67,7 +71,7 @@ impl Display for Error {
 /// use elephantine::request::{parse, Request};
 ///
 /// let input = parse("SETTITLE title").unwrap();
-/// assert_eq!(input, Request::SetTitle("title"));
+/// assert_eq!(input, Request::SetTitle(std::borrow::Cow::from("title")));
 /// ```
 ///
 /// # Errors
@@ -110,7 +114,7 @@ macro_rules! gen_parse_set {
                 let (rem, (_, _, arg)) = tuple((
                     tag($x),
                     space1,
-                    not_line_ending,
+                    map_res(not_line_ending, decode),
                 ))(s)?;
                 Ok((rem, Request::[<Set $x:camel>](arg)))
             }
@@ -144,7 +148,7 @@ fn parse_set_qualitybar(s: &str) -> IResult<&str, Request> {
     let res: IResult<&str, &str> = tag("_TT")(s);
     match res {
         Ok((s, _)) => {
-            let (s, (_, arg)) = tuple((space1, not_line_ending))(s)?;
+            let (s, (_, arg)) = tuple((space1, map_res(not_line_ending, decode)))(s)?;
             Ok((s, Request::SetQualitybarTt(arg)))
         }
         Err(_) => {
@@ -152,7 +156,7 @@ fn parse_set_qualitybar(s: &str) -> IResult<&str, Request> {
             match res {
                 Ok((s, _)) => Ok((s, Request::SetQualitybar(None))),
                 Err(_) => {
-                    let (s, (_, arg)) = tuple((space1, not_line_ending))(s)?;
+                    let (s, (_, arg)) = tuple((space1, map_res(not_line_ending, decode)))(s)?;
                     Ok((s, Request::SetQualitybar(Some(arg))))
                 }
             }
@@ -217,9 +221,9 @@ fn parse_option(s: &str) -> IResult<&str, Request> {
     let (s, (key, value)) = preceded(
         opt(tag("--")),
         separated_pair(
-            not_whitespace_nor_char('='),
+            map_res(not_whitespace_nor_char('='), decode),
             tuple((space0, opt(tag("=")), space0)),
-            opt(not_line_ending),
+            opt(map_res(not_line_ending, decode)),
         ),
     )(s)?;
     match value {
@@ -231,34 +235,47 @@ fn parse_option(s: &str) -> IResult<&str, Request> {
 #[cfg(test)]
 mod test {
     use super::Request::*;
+    use std::borrow::Cow;
 
     #[test]
     fn parse_command() {
         let test_cases = vec![
-            ("OPTION key", OptionBool("key")),
-            ("OPTION key=val", OptionKV("key", "val")),
+            ("OPTION key", OptionBool(Cow::from("key"))),
+            (
+                "OPTION key=value",
+                OptionKV(Cow::from("key"), Cow::from("value")),
+            ),
             ("GETINFO flavor", GetInfoFlavor),
             ("GETINFO version", GetInfoVersion),
             ("GETINFO ttyinfo", GetInfoTtyinfo),
             ("GETINFO pid", GetInfoPid),
             ("SETTIMEOUT 10", SetTimeout(10)),
-            ("SETDESC description", SetDesc("description")),
-            ("SETPROMPT prompt", SetPrompt("prompt")),
-            ("SETTITLE title", SetTitle("title")),
-            ("SETOK ok", SetOk("ok")),
-            ("SETCANCEL cancel", SetCancel("cancel")),
-            ("SETNOTOK notok", SetNotok("notok")),
-            ("SETERROR error", SetError("error")),
+            ("SETDESC description", SetDesc(Cow::from("description"))),
+            ("SETPROMPT prompt", SetPrompt(Cow::from("prompt"))),
+            ("SETTITLE title", SetTitle(Cow::from("title"))),
+            ("SETOK ok", SetOk(Cow::from("ok"))),
+            ("SETCANCEL cancel", SetCancel(Cow::from("cancel"))),
+            ("SETNOTOK notok", SetNotok(Cow::from("notok"))),
+            ("SETERROR error", SetError(Cow::from("error"))),
             ("SETREPEAT", SetRepeat),
             ("SETQUALITYBAR", SetQualitybar(None)),
-            ("SETQUALITYBAR value", SetQualitybar(Some("value"))),
-            ("SETQUALITYBAR_TT value", SetQualitybarTt("value")),
-            ("SETGENPIN value", SetGenpin("value")),
-            ("SETGENPIN_TT value", SetGenpinTt("value")),
+            (
+                "SETQUALITYBAR value",
+                SetQualitybar(Some(Cow::from("value"))),
+            ),
+            (
+                "SETQUALITYBAR_TT value",
+                SetQualitybarTt(Cow::from("value")),
+            ),
+            ("SETGENPIN value", SetGenpin(Cow::from("value"))),
+            ("SETGENPIN_TT value", SetGenpinTt(Cow::from("value"))),
             ("CONFIRM", Confirm),
             ("CONFIRM --one-button", ConfirmOneButton),
             ("MESSAGE", Message),
-            ("SETKEYINFO dummy-key-grip", SetKeyinfo("dummy-key-grip")),
+            (
+                "SETKEYINFO dummy-key-grip",
+                SetKeyinfo(Cow::from("dummy-key-grip")),
+            ),
             ("GETPIN", GetPin),
             ("BYE", Bye),
             ("RESET", Reset),
@@ -282,14 +299,32 @@ mod test {
         use nom::error::{Error, ErrorKind};
 
         let test_cases = vec![
-            ("OPTION key", Ok(OptionBool("key"))),
-            ("OPTION --key", Ok(OptionBool("key"))),
-            ("OPTION key value", Ok(OptionKV("key", "value"))),
-            ("OPTION --key value", Ok(OptionKV("key", "value"))),
-            ("OPTION key=value", Ok(OptionKV("key", "value"))),
-            ("OPTION --key=value", Ok(OptionKV("key", "value"))),
-            ("OPTION key = value", Ok(OptionKV("key", "value"))),
-            ("OPTION --key = value", Ok(OptionKV("key", "value"))),
+            ("OPTION key", Ok(OptionBool(Cow::from("key")))),
+            ("OPTION --key", Ok(OptionBool(Cow::from("key")))),
+            (
+                "OPTION key value",
+                Ok(OptionKV(Cow::from("key"), Cow::from("value"))),
+            ),
+            (
+                "OPTION --key value",
+                Ok(OptionKV(Cow::from("key"), Cow::from("value"))),
+            ),
+            (
+                "OPTION key=value",
+                Ok(OptionKV(Cow::from("key"), Cow::from("value"))),
+            ),
+            (
+                "OPTION --key=value",
+                Ok(OptionKV(Cow::from("key"), Cow::from("value"))),
+            ),
+            (
+                "OPTION key = value",
+                Ok(OptionKV(Cow::from("key"), Cow::from("value"))),
+            ),
+            (
+                "OPTION --key = value",
+                Ok(OptionKV(Cow::from("key"), Cow::from("value"))),
+            ),
             (
                 "OPTIONalkey",
                 Err(nom::Err::Error(Error::new("alkey", ErrorKind::Space))),
@@ -313,8 +348,14 @@ mod test {
                 Err(nom::Err::Error(Error::new("a", ErrorKind::Space))),
             ),
             ("QUALITYBAR", Ok(SetQualitybar(None))),
-            ("QUALITYBAR value", Ok(SetQualitybar(Some("value")))),
-            ("QUALITYBAR_TT value", Ok(SetQualitybarTt("value"))),
+            (
+                "QUALITYBAR value",
+                Ok(SetQualitybar(Some(Cow::from("value")))),
+            ),
+            (
+                "QUALITYBAR_TT value",
+                Ok(SetQualitybarTt(Cow::from("value"))),
+            ),
         ];
 
         for (input, expected) in test_cases {
