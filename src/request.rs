@@ -1,9 +1,10 @@
 use nom::{
     branch::alt,
-    bytes::complete::{tag, take_until},
-    character::complete::{not_line_ending, space1, u64},
-    combinator::{eof, map},
-    sequence::tuple,
+    bytes::complete::{tag, take_till},
+    character::complete::{not_line_ending, space0, space1, u64},
+    combinator::{eof, flat_map, map, opt},
+    error::Error as NomError,
+    sequence::{preceded, separated_pair, tuple},
     IResult,
 };
 use paste::paste;
@@ -54,24 +55,21 @@ impl Display for Error {
 ///
 /// # Examples
 /// ```
-/// use elephantine::command::{parse, Command};
+/// use elephantine::request::{parse, Request};
 ///
 /// let input = parse("SETTITLE title").unwrap();
-/// assert_eq!(input, Command::SetTitle("title"));
+/// assert_eq!(input, Request::SetTitle("title"));
 /// ```
 ///
 /// # Errors
 /// Will return an error if the input string is not a valid command.
 pub fn parse(s: &str) -> Result<Request<'_>, Error> {
-    parse_command(s)
-        .map(move |(_, c)| c)
-        .map_err(move |e| match e {
-            nom::Err::Error(nom::error::Error { input, .. })
-            | nom::Err::Failure(nom::error::Error { input, .. }) => {
-                Error::ParseError(input.to_string())
-            }
-            nom::Err::Incomplete(_n) => Error::ParseError("Incomplete input".to_string()),
-        })
+    parse_command(s).map(|(_, c)| c).map_err(|e| match e {
+        nom::Err::Error(NomError { input, .. }) | nom::Err::Failure(NomError { input, .. }) => {
+            Error::ParseError(input.to_string())
+        }
+        nom::Err::Incomplete(_n) => Error::ParseError("Incomplete input".to_string()),
+    })
 }
 
 fn parse_command(s: &str) -> IResult<&str, Request> {
@@ -165,33 +163,49 @@ fn parse_get(s: &str) -> IResult<&str, Request> {
     let (s, _) = tag("GET")(s)?;
     alt((
         map(tag("PIN"), |_| Request::GetPin),
-        map(tag("INFO flavor"), |_| Request::GetInfoFlavor),
-        map(tag("INFO version"), |_| Request::GetInfoVersion),
-        map(tag("INFO ttyinfo"), |_| Request::GetInfoTtyinfo),
-        map(tag("INFO pid"), |_| Request::GetInfoPid),
+        flat_map(tag("INFO"), |_| parse_get_info),
+    ))(s)
+}
+
+fn parse_get_info(s: &str) -> IResult<&str, Request> {
+    let (s, _) = space1(s)?;
+    alt((
+        map(tag("flavor"), |_| Request::GetInfoFlavor),
+        map(tag("version"), |_| Request::GetInfoVersion),
+        map(tag("ttyinfo"), |_| Request::GetInfoTtyinfo),
+        map(tag("pid"), |_| Request::GetInfoPid),
     ))(s)
 }
 
 fn parse_confirm(s: &str) -> IResult<&str, Request> {
     let (s, _) = tag("CONFIRM")(s)?;
-    let res: IResult<&str, &str> = tag(" --one-button")(s);
-    Ok(match res {
-        Ok((s, _)) => (s, Request::ConfirmOneButton),
-        Err(_) => (s, Request::Confirm),
+    map(tag::<&str, &str, NomError<&str>>(" --one-button"), |_| {
+        Request::ConfirmOneButton
+    })(s)
+    .or_else(|_| {
+        let (s, _) = eof(s)?;
+        Ok((s, Request::Confirm))
     })
+}
+
+fn not_whitespace_nor_char(c: char) -> impl Fn(&str) -> IResult<&str, &str> {
+    move |s| take_till(|d: char| d.is_whitespace() || d == c)(s)
 }
 
 fn parse_option(s: &str) -> IResult<&str, Request> {
     let (s, _) = tuple((tag("OPTION"), space1))(s)?;
-    let res: IResult<&str, (&str, &str, &str)> =
-        tuple((take_until("="), tag("="), not_line_ending))(s);
-    Ok(match res {
-        Ok((s, (key, _, value))) => (s, Request::OptionKV(key, value)),
-        Err(_) => {
-            let (s, key) = not_line_ending(s)?;
-            (s, Request::OptionBool(key))
-        }
-    })
+    let (s, (key, value)) = preceded(
+        opt(tag("--")),
+        separated_pair(
+            not_whitespace_nor_char('='),
+            tuple((space0, opt(tag("=")), space0)),
+            opt(not_line_ending),
+        ),
+    )(s)?;
+    match value {
+        Some(value) if !value.is_empty() => Ok((s, Request::OptionKV(key, value))),
+        _ => Ok((s, Request::OptionBool(key))),
+    }
 }
 
 #[cfg(test)]
@@ -234,6 +248,32 @@ mod test {
     }
 
     #[test]
+    fn parse_set_option() {
+        use super::parse_option;
+        use nom::error::{Error, ErrorKind};
+
+        let test_cases = vec![
+            ("OPTION key", Ok(OptionBool("key"))),
+            ("OPTION --key", Ok(OptionBool("key"))),
+            ("OPTION key value", Ok(OptionKV("key", "value"))),
+            ("OPTION --key value", Ok(OptionKV("key", "value"))),
+            ("OPTION key=value", Ok(OptionKV("key", "value"))),
+            ("OPTION --key=value", Ok(OptionKV("key", "value"))),
+            ("OPTION key = value", Ok(OptionKV("key", "value"))),
+            ("OPTION --key = value", Ok(OptionKV("key", "value"))),
+            (
+                "OPTIONalkey",
+                Err(nom::Err::Error(Error::new("alkey", ErrorKind::Space))),
+            ),
+        ];
+
+        for (input, expected) in test_cases {
+            let result = parse_option(input);
+            assert_eq!(result, expected.map(|x| ("", x)));
+        }
+    }
+
+    #[test]
     fn parse_set_qualitybar() {
         use super::parse_set_qualitybar;
         use nom::error::{Error, ErrorKind};
@@ -250,6 +290,26 @@ mod test {
 
         for (input, expected) in test_cases {
             let result = parse_set_qualitybar(input);
+            assert_eq!(result, expected.map(|x| ("", x)));
+        }
+    }
+
+    #[test]
+    fn parse_confirm() {
+        use super::parse_confirm;
+        use nom::error::{Error, ErrorKind};
+
+        let test_cases = vec![
+            (
+                "CONFIRM a",
+                Err(nom::Err::Error(Error::new(" a", ErrorKind::Eof))),
+            ),
+            ("CONFIRM", Ok(Confirm)),
+            ("CONFIRM --one-button", Ok(ConfirmOneButton)),
+        ];
+
+        for (input, expected) in test_cases {
+            let result = parse_confirm(input);
             assert_eq!(result, expected.map(|x| ("", x)));
         }
     }
