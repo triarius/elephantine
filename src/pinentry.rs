@@ -138,8 +138,16 @@ where
         ],
         GetInfoFlavor => vec![Response::D("walker".to_string()), Response::Ok(None)],
         GetInfoTtyinfo => {
-            // TODO Get the terminal size etc
-            vec![Response::Ok(None)]
+            // TODO: find out what this is supposed to do by reading more from
+            // https://github.com/gpg/pinentry/blob/f4be34f83fd2079fa452525738ef19783c712438/pinentry/pinentry.c#L1896
+            vec![
+                Response::D(format!(
+                    "- - - - {}/{} 0",
+                    users::get_current_uid(),
+                    users::get_current_gid(),
+                )),
+                Response::Ok(None),
+            ]
         }
         GetPin => get_pin(state).map_or_else(
             |e| match e {
@@ -213,6 +221,10 @@ mod test {
 
     #[test]
     fn test_listen() {
+        let uid = users::get_current_uid();
+        let gid = users::get_current_gid();
+        let pid = std::process::id();
+
         let input = std::io::BufReader::new(std::io::Cursor::new(indoc! {"
             OPTION no-grab
             OPTION ttyname=not a tty
@@ -241,10 +253,10 @@ mod test {
             BYE
         "}));
         let mut output = std::io::Cursor::new(vec![]);
-        listen(input, &mut output, get_pin).unwrap();
-        let output = String::from_utf8(output.into_inner()).unwrap();
 
-        let pid = std::process::id();
+        listen(input, &mut output, get_pin).unwrap();
+
+        let output = String::from_utf8(output.into_inner()).unwrap();
 
         assert_eq!(
             output,
@@ -271,6 +283,7 @@ mod test {
                     OK
                     D 0.1.0
                     OK
+                    D - - - - {}/{} 0
                     OK
                     D {}
                     OK
@@ -281,7 +294,7 @@ mod test {
                     OK
                     OK
                 "},
-                pid
+                uid, gid, pid,
             ),
         );
     }
