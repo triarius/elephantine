@@ -48,7 +48,7 @@ impl Default for State {
     }
 }
 
-fn handle_set_req(req: Request, state: &mut State) -> Response {
+fn handle_set_req(req: Request, state: &mut State) -> Vec<Response> {
     use Request::*;
     match req {
         SetTimeout(timeout) => state.timeout = timeout,
@@ -75,10 +75,10 @@ fn handle_set_req(req: Request, state: &mut State) -> Response {
         }
         _ => {}
     };
-    Response::Ok(None)
+    vec![Response::Ok(None)]
 }
 
-fn handle_req<'a>(req: Request, state: &mut State) -> Response {
+fn handle_req<'a>(req: Request, state: &mut State) -> Result<Vec<Response>> {
     use Request::*;
     match req {
         message @ (SetTimeout(_)
@@ -96,23 +96,29 @@ fn handle_req<'a>(req: Request, state: &mut State) -> Response {
         | SetGenpin(_)
         | SetGenpinTt(_)
         | OptionBool(_)
-        | OptionKV(_, _)) => handle_set_req(message, state),
+        | OptionKV(_, _)) => Ok(handle_set_req(message, state)),
         Message => {
             // Show a message with the value of the last SETDESC
-            Response::Ok(None)
+            Ok(vec![Response::Ok(None)])
         }
         Confirm => {
             // Show a confirmation dialog with the value of the last SETDESC
-            Response::Ok(None)
+            Ok(vec![Response::Ok(None)])
         }
         ConfirmOneButton => {
             // Show a confirmation dialog with the value of the last SETDESC
-            Response::Ok(None)
+            Ok(vec![Response::Ok(None)])
         }
-        GetInfoPid => Response::D(format!("{}", std::process::id())),
-        GetInfoVersion => Response::D(build_info::PKG_VERSION.to_string()),
-        GetInfoFlavor => Response::D("".to_string()),
-        GetInfoTtyinfo => Response::D("".to_string()),
+        GetInfoPid => Ok(vec![
+            Response::D(format!("{}", std::process::id())),
+            Response::Ok(None),
+        ]),
+        GetInfoVersion => Ok(vec![
+            Response::D(build_info::PKG_VERSION.to_string()),
+            Response::Ok(None),
+        ]),
+        GetInfoFlavor => Ok(vec![Response::D("walker".to_string()), Response::Ok(None)]),
+        GetInfoTtyinfo => Ok(vec![Response::Ok(None)]),
         GetPin => {
             use std::process::Command;
             let walker = Command::new("walker")
@@ -121,25 +127,31 @@ fn handle_req<'a>(req: Request, state: &mut State) -> Response {
                 .map_err(color_eyre::Report::new)
                 .unwrap();
             if walker.status.success() {
-                Response::D(String::from_utf8(walker.stdout).unwrap())
+                Ok(vec![
+                    Response::D(String::from_utf8(walker.stdout)?),
+                    Response::Ok(None),
+                ])
             } else {
-                Response::Err(1, String::from_utf8(walker.stderr).unwrap())
+                Ok(vec![Response::Err(
+                    walker.status.code().unwrap_or(1),
+                    String::from_utf8(walker.stderr)?,
+                )])
             }
         }
-        Bye => Response::Ok(None),
+        Bye => Ok(vec![Response::Ok(None)]),
         Reset => {
             *state = State::default();
-            Response::Ok(None)
+            Ok(vec![Response::Ok(None)])
         }
-        End => Response::Ok(None),
+        End => Ok(vec![Response::Ok(None)]),
         Help => {
             // TODO Print all available commands
-            Response::Ok(None)
+            Ok(vec![Response::Ok(None)])
         }
-        Quit => Response::Ok(None),
-        Cancel => Response::Ok(None),
-        Auth => Response::Ok(None),
-        Nop => Response::Ok(None),
+        Quit => Ok(vec![Response::Ok(None)]),
+        Cancel => Ok(vec![Response::Ok(None)]),
+        Auth => Ok(vec![Response::Ok(None)]),
+        Nop => Ok(vec![Response::Ok(None)]),
     }
 }
 
@@ -147,13 +159,21 @@ fn main() -> Result<()> {
     let input = BufReader::new(stdin());
     let mut output = std::io::stdout();
 
+    writeln!(
+        output,
+        "{}",
+        Response::Ok(Some("Greetings from Elephantine".to_string())),
+    )?;
+
     let mut state = State::default();
     for line in input.lines() {
         let line = line?;
         let req = parse(&line)?;
 
-        let resp = handle_req(req, &mut state);
-        writeln!(output, "{}", resp)?;
+        let resps = handle_req(req, &mut state);
+        for resp in resps? {
+            writeln!(output, "{}", resp)?;
+        }
     }
     Ok(())
 }

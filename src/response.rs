@@ -3,7 +3,7 @@ use std::fmt::{self, Display, Formatter};
 #[derive(Debug, PartialEq, Eq)]
 pub enum Response {
     Ok(Option<String>),
-    Err(u64, String),
+    Err(i32, String),
     D(String),
     Comment(String),
     S(String, String),
