@@ -19,3 +19,4 @@ built = "0.7"
 all = "deny"
 pedantic = "deny"
 single_match_else = { level = "allow", priority = 1 }
+enum_glob_use = { level = "allow", priority = 1 }

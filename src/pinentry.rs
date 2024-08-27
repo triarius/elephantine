@@ -8,6 +8,7 @@ use std::{
     io::{BufRead, Write},
 };
 
+#[derive(Debug, Default, PartialEq, Eq)]
 struct State {
     timeout: u64,
     desc: Option<String>,
@@ -24,28 +25,6 @@ struct State {
     genpin: Option<String>,
     genpin_tt: Option<String>,
     options: HashMap<String, Option<String>>,
-}
-
-impl Default for State {
-    fn default() -> Self {
-        Self {
-            timeout: 0,
-            desc: None,
-            keyinfo: None,
-            prompt: None,
-            title: None,
-            ok: None,
-            cancel: None,
-            notok: None,
-            error: None,
-            repeat: false,
-            qualitybar: None,
-            qualitybar_tt: None,
-            genpin: None,
-            genpin_tt: None,
-            options: HashMap::new(),
-        }
-    }
 }
 
 fn handle_set_req(req: Request, state: &mut State) -> Vec<Response> {
@@ -78,7 +57,7 @@ fn handle_set_req(req: Request, state: &mut State) -> Vec<Response> {
     vec![Response::Ok(None)]
 }
 
-fn handle_req<'a>(req: Request, state: &mut State) -> Result<Vec<Response>> {
+fn handle_req(req: Request, state: &mut State) -> Result<Vec<Response>> {
     use crate::request::Request::*;
     match req {
         message @ (SetTimeout(_)
@@ -106,7 +85,8 @@ fn handle_req<'a>(req: Request, state: &mut State) -> Result<Vec<Response>> {
             Ok(vec![Response::Ok(None)])
         }
         ConfirmOneButton => {
-            // Show a confirmation dialog with the value of the last SETDESC
+            // Show a confirmation dialog with the value of the last SETDESC, but with only one
+            // button
             Ok(vec![Response::Ok(None)])
         }
         GetInfoPid => Ok(vec![
@@ -118,7 +98,10 @@ fn handle_req<'a>(req: Request, state: &mut State) -> Result<Vec<Response>> {
             Response::Ok(None),
         ]),
         GetInfoFlavor => Ok(vec![Response::D("walker".to_string()), Response::Ok(None)]),
-        GetInfoTtyinfo => Ok(vec![Response::Ok(None)]),
+        GetInfoTtyinfo => {
+            // TODO Get the terminal size etc
+            Ok(vec![Response::Ok(None)])
+        }
         GetPin => {
             use std::process::Command;
             let walker = Command::new("walker")
@@ -138,23 +121,21 @@ fn handle_req<'a>(req: Request, state: &mut State) -> Result<Vec<Response>> {
                 )])
             }
         }
-        Bye => Ok(vec![Response::Ok(None)]),
         Reset => {
             *state = State::default();
             Ok(vec![Response::Ok(None)])
         }
-        End => Ok(vec![Response::Ok(None)]),
         Help => {
             // TODO Print all available commands
             Ok(vec![Response::Ok(None)])
         }
-        Quit => Ok(vec![Response::Ok(None)]),
-        Cancel => Ok(vec![Response::Ok(None)]),
-        Auth => Ok(vec![Response::Ok(None)]),
-        Nop => Ok(vec![Response::Ok(None)]),
+        Bye | End | Quit | Cancel | Auth | Nop => Ok(vec![Response::Ok(None)]),
     }
 }
 
+/// Listen for requests on the given input and respond on the given output
+/// # Errors
+/// If there is an error reading from or parsing the input or writing to the output
 pub fn listen(input: impl BufRead, output: &mut impl Write) -> Result<()> {
     writeln!(
         output,
@@ -169,7 +150,7 @@ pub fn listen(input: impl BufRead, output: &mut impl Write) -> Result<()> {
 
         let resps = handle_req(req, &mut state);
         for resp in resps? {
-            writeln!(output, "{}", resp)?;
+            writeln!(output, "{resp}")?;
         }
     }
     Ok(())
