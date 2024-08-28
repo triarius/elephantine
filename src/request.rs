@@ -26,7 +26,7 @@ pub enum Request<'a> {
     SetCancel(Cow<'a, str>),
     SetNotok(Cow<'a, str>),
     SetError(Cow<'a, str>),
-    SetRepeat,
+    SetRepeat(Cow<'a, str>),
     SetRepeaterror(Cow<'a, str>),
     SetRepeatok(Cow<'a, str>),
     SetQualitybar(Option<Cow<'a, str>>),
@@ -143,14 +143,23 @@ fn parse_set_timeout(s: &str) -> IResult<&str, Request> {
 fn parse_set_repeat(s: &str) -> IResult<&str, Request> {
     let (s, _) = tag("REPEAT")(s)?;
     alt((
-        map(eof, |_| Request::SetRepeat),
         map(
-            preceded(tuple((tag("ERROR"), space1)), not_line_ending),
-            |val| Request::SetRepeaterror(Cow::Borrowed(val)),
+            map_res(preceded(space1, not_line_ending), decode),
+            Request::SetRepeat,
         ),
         map(
-            preceded(tuple((tag("OK"), space1)), not_line_ending),
-            |val| Request::SetRepeatok(Cow::Borrowed(val)),
+            map_res(
+                preceded(tuple((tag("ERROR"), space1)), not_line_ending),
+                decode,
+            ),
+            Request::SetRepeaterror,
+        ),
+        map(
+            map_res(
+                preceded(tuple((tag("OK"), space1)), not_line_ending),
+                decode,
+            ),
+            Request::SetRepeatok,
         ),
     ))(s)
 }
@@ -264,7 +273,9 @@ mod test {
             ("SETCANCEL cancel", SetCancel(Cow::from("cancel"))),
             ("SETNOTOK notok", SetNotok(Cow::from("notok"))),
             ("SETERROR error", SetError(Cow::from("error"))),
-            ("SETREPEAT", SetRepeat),
+            ("SETREPEAT value", SetRepeat(Cow::from("value"))),
+            ("SETREPEATERROR value", SetRepeaterror(Cow::from("value"))),
+            ("SETREPEATOK value", SetRepeatok(Cow::from("value"))),
             ("SETQUALITYBAR", SetQualitybar(None)),
             (
                 "SETQUALITYBAR value",
@@ -276,8 +287,6 @@ mod test {
             ),
             ("SETGENPIN value", SetGenpin(Cow::from("value"))),
             ("SETGENPIN_TT value", SetGenpinTt(Cow::from("value"))),
-            ("SETREPEATERROR value", SetRepeaterror(Cow::from("value"))),
-            ("SETREPEATOK value", SetRepeatok(Cow::from("value"))),
             ("CONFIRM", Confirm),
             ("CONFIRM --one-button", ConfirmOneButton),
             ("MESSAGE", Message),
