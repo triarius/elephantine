@@ -202,12 +202,14 @@ where
         "{}",
         Response::Ok(Some("Greetings from Elephantine".to_string())),
     )?;
+    log::debug!("Started Assuan server...");
 
     let mut state = State::default();
     for line in input.lines() {
         let line = line?;
-        let req = parse(&line)?;
+        log::debug!("Request: {}", line);
 
+        let req = parse(&line)?;
         let resps = handle_req(req, &mut state, get_pin);
         for resp in resps {
             writeln!(output, "{resp}")?;
