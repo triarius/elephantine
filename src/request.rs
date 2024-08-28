@@ -27,6 +27,8 @@ pub enum Request<'a> {
     SetNotok(Cow<'a, str>),
     SetError(Cow<'a, str>),
     SetRepeat,
+    SetRepeaterror(Cow<'a, str>),
+    SetRepeatok(Cow<'a, str>),
     SetQualitybar(Option<Cow<'a, str>>),
     SetQualitybarTt(Cow<'a, str>),
     SetGenpin(Cow<'a, str>),
@@ -139,29 +141,32 @@ fn parse_set_timeout(s: &str) -> IResult<&str, Request> {
 }
 
 fn parse_set_repeat(s: &str) -> IResult<&str, Request> {
-    let (rem, _) = tag("REPEAT")(s)?;
-    Ok((rem, Request::SetRepeat))
+    let (s, _) = tag("REPEAT")(s)?;
+    alt((
+        map(eof, |_| Request::SetRepeat),
+        map(
+            preceded(tuple((tag("ERROR"), space1)), not_line_ending),
+            |val| Request::SetRepeaterror(Cow::Borrowed(val)),
+        ),
+        map(
+            preceded(tuple((tag("OK"), space1)), not_line_ending),
+            |val| Request::SetRepeatok(Cow::Borrowed(val)),
+        ),
+    ))(s)
 }
 
 fn parse_set_qualitybar(s: &str) -> IResult<&str, Request> {
     let (s, _) = tag("QUALITYBAR")(s)?;
-    let res: IResult<&str, &str> = tag("_TT")(s);
-    match res {
-        Ok((s, _)) => {
-            let (s, (_, arg)) = tuple((space1, map_res(not_line_ending, decode)))(s)?;
-            Ok((s, Request::SetQualitybarTt(arg)))
-        }
-        Err(_) => {
-            let res: IResult<&str, &str> = eof(s);
-            match res {
-                Ok((s, _)) => Ok((s, Request::SetQualitybar(None))),
-                Err(_) => {
-                    let (s, (_, arg)) = tuple((space1, map_res(not_line_ending, decode)))(s)?;
-                    Ok((s, Request::SetQualitybar(Some(arg))))
-                }
-            }
-        }
-    }
+    alt((
+        map(eof, |_| Request::SetQualitybar(None)),
+        map(preceded(space1, not_line_ending), |val| {
+            Request::SetQualitybar(Some(Cow::Borrowed(val)))
+        }),
+        map(
+            preceded(tuple((tag("_TT"), space1)), not_line_ending),
+            |val| Request::SetQualitybarTt(Cow::Borrowed(val)),
+        ),
+    ))(s)
 }
 
 fn parse_set(s: &str) -> IResult<&str, Request> {
@@ -218,18 +223,20 @@ fn not_whitespace_nor_char(c: char) -> impl Fn(&str) -> IResult<&str, &str> {
 
 fn parse_option(s: &str) -> IResult<&str, Request> {
     let (s, _) = tuple((tag("OPTION"), space1))(s)?;
-    let (s, (key, value)) = preceded(
-        opt(tag("--")),
-        separated_pair(
-            map_res(not_whitespace_nor_char('='), decode),
-            tuple((space0, opt(tag("=")), space0)),
-            opt(map_res(not_line_ending, decode)),
+    map(
+        preceded(
+            opt(tag("--")),
+            separated_pair(
+                map_res(not_whitespace_nor_char('='), decode),
+                tuple((space0, opt(tag("=")), space0)),
+                opt(map_res(not_line_ending, decode)),
+            ),
         ),
-    )(s)?;
-    match value {
-        Some(value) if !value.is_empty() => Ok((s, Request::OptionKV(key, value))),
-        _ => Ok((s, Request::OptionBool(key))),
-    }
+        |(key, value)| match value {
+            Some(value) if !value.is_empty() => Request::OptionKV(key, value),
+            _ => Request::OptionBool(key),
+        },
+    )(s)
 }
 
 #[cfg(test)]
@@ -269,6 +276,8 @@ mod test {
             ),
             ("SETGENPIN value", SetGenpin(Cow::from("value"))),
             ("SETGENPIN_TT value", SetGenpinTt(Cow::from("value"))),
+            ("SETREPEATERROR value", SetRepeaterror(Cow::from("value"))),
+            ("SETREPEATOK value", SetRepeatok(Cow::from("value"))),
             ("CONFIRM", Confirm),
             ("CONFIRM --one-button", ConfirmOneButton),
             ("MESSAGE", Message),
@@ -345,7 +354,7 @@ mod test {
         let test_cases = vec![
             (
                 "QUALITYBARa",
-                Err(nom::Err::Error(Error::new("a", ErrorKind::Space))),
+                Err(nom::Err::Error(Error::new("a", ErrorKind::Tag))),
             ),
             ("QUALITYBAR", Ok(SetQualitybar(None))),
             (

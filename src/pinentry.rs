@@ -56,6 +56,8 @@ pub(crate) struct State {
     notok: Option<String>,
     error: Option<String>,
     repeat: bool,
+    repeatok: Option<String>,
+    repeaterror: Option<String>,
     qualitybar: Option<String>,
     qualitybar_tt: Option<String>,
     genpin: Option<String>,
@@ -80,6 +82,14 @@ fn handle_set_req(req: Request, state: &mut State) -> Vec<Response> {
         SetQualitybarTt(qualitybar_tt) => state.qualitybar_tt = Some(qualitybar_tt.to_string()),
         SetGenpin(genpin) => state.genpin = Some(genpin.to_string()),
         SetGenpinTt(genpin_tt) => state.genpin_tt = Some(genpin_tt.to_string()),
+        SetRepeaterror(repeaterror) => {
+            state.repeat = true;
+            state.repeaterror = Some(repeaterror.to_string());
+        }
+        SetRepeatok(repeatok) => {
+            state.repeat = true;
+            state.repeatok = Some(repeatok.to_string());
+        }
         OptionBool(key) => {
             state.options.insert(key.to_string(), None);
         }
@@ -113,6 +123,8 @@ where
         | SetQualitybarTt(_)
         | SetGenpin(_)
         | SetGenpinTt(_)
+        | SetRepeaterror(_)
+        | SetRepeatok(_)
         | OptionBool(_)
         | OptionKV(_, _)) => handle_set_req(message, state),
         Message => {
@@ -249,6 +261,8 @@ mod test {
             SETKEYINFO n/B830C0023090DD5DC5F5D2EFFD00168706E40708
             SETDESC Please enter the passphrase to unlock the OpenPGP secret key:%0A%22Narthana Epa <narthana.epa@gmail.com>%22%0A255-bit EDDSA key, ID 0FA72769B0697155,%0Acreated 2022-09-30 (main key ID BF82195DF1BD0789).%0A
             SETPROMPT Passphrase:
+            SETREPEATERROR does not match - try again
+            SETREPEATOK Passphrase match.
             GETPIN
             BYE
         "}));
@@ -286,6 +300,8 @@ mod test {
                     D - - - - {}/{} 0
                     OK
                     D {}
+                    OK
+                    OK
                     OK
                     OK
                     OK
