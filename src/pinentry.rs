@@ -97,11 +97,18 @@ fn handle_set_req(req: Request, state: &mut State) -> Vec<Response> {
     vec![Response::Ok(None)]
 }
 
-fn handle_req<F>(req: Request, state: &mut State, get_pin: F) -> Vec<Response>
+#[derive(Debug, PartialEq, Eq)]
+enum Action<T> {
+    Next(T),
+    Stop(T),
+}
+
+fn handle_req<F>(req: Request, state: &mut State, get_pin: F) -> Action<Vec<Response>>
 where
     F: Fn(&State) -> std::result::Result<String, GetPinError>,
 {
     use crate::request::Request::*;
+    use Action::*;
     match req {
         req @ (SetTimeout(_)
         | SetDesc(_)
@@ -120,42 +127,42 @@ where
         | SetGenpin(_)
         | SetGenpinTt(_)
         | OptionBool(_)
-        | OptionKV(_, _)) => handle_set_req(req, state),
+        | OptionKV(_, _)) => Next(handle_set_req(req, state)),
         Message => {
             // Show a message with the value of the last SETDESC
-            vec![Response::Ok(None)]
+            Next(vec![Response::Ok(None)])
         }
         Confirm => {
             // Show a confirmation dialog with the value of the last SETDESC
-            vec![Response::Ok(None)]
+            Next(vec![Response::Ok(None)])
         }
         ConfirmOneButton => {
             // Show a confirmation dialog with the value of the last SETDESC, but with only one
             // button
-            vec![Response::Ok(None)]
+            Next(vec![Response::Ok(None)])
         }
-        GetInfoPid => vec![
+        GetInfoPid => Next(vec![
             Response::D(format!("{}", std::process::id())),
             Response::Ok(None),
-        ],
-        GetInfoVersion => vec![
+        ]),
+        GetInfoVersion => Next(vec![
             Response::D(crate::build_info::PKG_VERSION.to_string()),
             Response::Ok(None),
-        ],
-        GetInfoFlavor => vec![Response::D("walker".to_string()), Response::Ok(None)],
+        ]),
+        GetInfoFlavor => Next(vec![Response::D("walker".to_string()), Response::Ok(None)]),
         GetInfoTtyinfo => {
             // TODO: find out what this is supposed to do by reading more from
             // https://github.com/gpg/pinentry/blob/f4be34f83fd2079fa452525738ef19783c712438/pinentry/pinentry.c#L1896
-            vec![
+            Next(vec![
                 Response::D(format!(
                     "- - - - {}/{} 0",
                     users::get_current_uid(),
                     users::get_current_gid(),
                 )),
                 Response::Ok(None),
-            ]
+            ])
         }
-        GetPin => get_pin(state).map_or_else(
+        GetPin => Next(get_pin(state).map_or_else(
             |e| match e {
                 GetPinError::Command(e) => {
                     vec![Response::Err(e.code, e.stderr)]
@@ -163,16 +170,19 @@ where
                 e => vec![Response::Err(1, e.to_string())],
             },
             |pin| vec![Response::D(pin), Response::Ok(None)],
-        ),
+        )),
         Reset => {
             *state = State::default();
-            vec![Response::Ok(None)]
+            Next(vec![Response::Ok(None)])
         }
         Help => {
             // TODO Print all available commands
-            vec![Response::Ok(None)]
+            Next(vec![Response::Ok(None)])
         }
-        Bye | End | Quit | Cancel | Auth | Nop => vec![Response::Ok(None)],
+        Nop => Next(vec![Response::Ok(None)]),
+        Bye | End | Quit | Cancel | Auth => {
+            Stop(vec![Response::Ok(Some("closing connection".to_string()))])
+        }
     }
 }
 
@@ -210,9 +220,18 @@ where
         log::debug!("Request: {}", line);
 
         let req = parse(&line)?;
-        let resps = handle_req(req, &mut state, get_pin);
-        for resp in resps {
-            writeln!(output, "{resp}")?;
+        match handle_req(req, &mut state, get_pin) {
+            Action::Next(resps) => {
+                for resp in resps {
+                    writeln!(output, "{resp}")?;
+                }
+            }
+            Action::Stop(resps) => {
+                for resp in resps {
+                    writeln!(output, "{resp}")?;
+                }
+                return Ok(());
+            }
         }
     }
     Ok(())
@@ -304,7 +323,7 @@ mod test {
                     OK
                     D 1234
                     OK
-                    OK
+                    OK closing connection
                 "},
                 uid, gid, pid,
             ),
