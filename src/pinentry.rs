@@ -1,5 +1,5 @@
 use crate::{
-    request::{parse, Request},
+    request::{parse, OptionReq, Request, Set},
     response::Response,
 };
 use color_eyre::Result;
@@ -65,35 +65,39 @@ pub(crate) struct State {
     options: HashMap<String, Option<String>>,
 }
 
-fn handle_set_req(req: Request, state: &mut State) -> Vec<Response> {
-    use crate::request::Request::*;
+fn handle_set_req(req: Set, state: &mut State) -> Vec<Response> {
+    use Set::*;
     match req {
-        SetTimeout(t) => state.timeout = t,
-        SetDesc(m) => state.desc = Some(m.to_string()),
-        SetKeyinfo(m) => state.keyinfo = Some(m.to_string()),
-        SetPrompt(m) => state.prompt = Some(m.to_string()),
-        SetTitle(m) => state.title = Some(m.to_string()),
-        SetOk(m) => state.ok = Some(m.to_string()),
-        SetCancel(m) => state.cancel = Some(m.to_string()),
-        SetNotok(m) => state.notok = Some(m.to_string()),
-        SetError(m) => state.error = Some(m.to_string()),
-        SetRepeat(m) => state.repeat = Some(m.to_string()),
-        SetRepeaterror(m) => state.repeaterror = Some(m.to_string()),
-        SetRepeatok(m) => state.repeatok = Some(m.to_string()),
-        SetQualitybar(m) => state.qualitybar = m.map(|s| s.to_string()),
-        SetQualitybarTt(m) => state.qualitybar_tt = Some(m.to_string()),
-        SetGenpin(m) => state.genpin = Some(m.to_string()),
-        SetGenpinTt(m) => state.genpin_tt = Some(m.to_string()),
-        OptionBool(key) => {
-            state.options.insert(key.to_string(), None);
-        }
-        OptionKV(key, value) => {
-            state
-                .options
-                .insert(key.to_string(), Some(value.to_string()));
-        }
-        _ => {}
+        Timeout(t) => state.timeout = t,
+        Desc(m) => state.desc = Some(m.to_string()),
+        Keyinfo(m) => state.keyinfo = Some(m.to_string()),
+        Prompt(m) => state.prompt = Some(m.to_string()),
+        Title(m) => state.title = Some(m.to_string()),
+        Ok(m) => state.ok = Some(m.to_string()),
+        Cancel(m) => state.cancel = Some(m.to_string()),
+        Notok(m) => state.notok = Some(m.to_string()),
+        Error(m) => state.error = Some(m.to_string()),
+        Repeat(m) => state.repeat = Some(m.to_string()),
+        Repeaterror(m) => state.repeaterror = Some(m.to_string()),
+        Repeatok(m) => state.repeatok = Some(m.to_string()),
+        Qualitybar(m) => state.qualitybar = m.map(|s| s.to_string()),
+        QualitybarTt(m) => state.qualitybar_tt = Some(m.to_string()),
+        Genpin(m) => state.genpin = Some(m.to_string()),
+        GenpinTt(m) => state.genpin_tt = Some(m.to_string()),
     };
+    vec![Response::Ok(None)]
+}
+
+fn handle_option_req(o: OptionReq, state: &mut State) -> Vec<Response> {
+    use OptionReq::*;
+    match o {
+        Bool(k) => {
+            state.options.insert(k.to_string(), None);
+        }
+        KV(k, v) => {
+            state.options.insert(k.to_string(), Some(v.to_string()));
+        }
+    }
     vec![Response::Ok(None)]
 }
 
@@ -110,24 +114,8 @@ where
     use crate::request::Request::*;
     use Action::*;
     match req {
-        req @ (SetTimeout(_)
-        | SetDesc(_)
-        | SetKeyinfo(_)
-        | SetPrompt(_)
-        | SetTitle(_)
-        | SetOk(_)
-        | SetCancel(_)
-        | SetNotok(_)
-        | SetError(_)
-        | SetRepeat(_)
-        | SetRepeaterror(_)
-        | SetRepeatok(_)
-        | SetQualitybar(_)
-        | SetQualitybarTt(_)
-        | SetGenpin(_)
-        | SetGenpinTt(_)
-        | OptionBool(_)
-        | OptionKV(_, _)) => Next(handle_set_req(req, state)),
+        Set(s) => Next(handle_set_req(s, state)),
+        Option(o) => Next(handle_option_req(o, state)),
         Message => {
             // Show a message with the value of the last SETDESC
             Next(vec![Response::Ok(None)])
