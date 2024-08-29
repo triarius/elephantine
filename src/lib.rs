@@ -1,3 +1,10 @@
+pub mod request;
+pub mod response;
+
+pub(crate) mod build_info {
+    include!(concat!(env!("OUT_DIR"), "/built.rs"));
+}
+
 use crate::{
     request::{parse, OptionReq, Request, Set},
     response::Response,
@@ -11,7 +18,7 @@ use std::{
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-pub(crate) enum GetPinError {
+pub enum GetPinError {
     Command(CommandError),
     Setup(std::io::Error),
     Output(std::string::FromUtf8Error),
@@ -29,7 +36,7 @@ impl Display for GetPinError {
 }
 
 #[derive(Debug, Error)]
-pub(crate) struct CommandError {
+pub struct CommandError {
     code: i32,
     stderr: String,
 }
@@ -45,7 +52,7 @@ impl Display for CommandError {
 }
 
 #[derive(Debug, Default, PartialEq, Eq)]
-pub(crate) struct State {
+pub struct State {
     timeout: u64,
     desc: Option<String>,
     keyinfo: Option<String>,
@@ -174,7 +181,7 @@ where
     }
 }
 
-pub(crate) fn walker_get_pin(_state: &State) -> std::result::Result<String, GetPinError> {
+pub fn walker_get_pin(_state: &State) -> std::result::Result<String, GetPinError> {
     std::process::Command::new("walker")
         .arg("--password")
         .output()
@@ -191,7 +198,7 @@ pub(crate) fn walker_get_pin(_state: &State) -> std::result::Result<String, GetP
         })
 }
 
-pub(crate) fn listen<F>(input: impl BufRead, output: &mut impl Write, get_pin: F) -> Result<()>
+pub fn listen<F>(input: impl BufRead, output: &mut impl Write, get_pin: F) -> Result<()>
 where
     F: Fn(&State) -> std::result::Result<String, GetPinError> + Copy,
 {
