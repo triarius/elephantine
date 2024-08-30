@@ -80,10 +80,10 @@ impl Display for Error {
 ///
 /// # Examples
 /// ```
-/// use elephantine::request::{parse, Request};
+/// use elephantine::request::{parse, Request, Set};
 ///
 /// let input = parse("SETTITLE title").unwrap();
-/// assert_eq!(input, Request::SetTitle(std::borrow::Cow::from("title")));
+/// assert_eq!(input, Request::Set(Set::Title(std::borrow::Cow::from("title"))));
 /// ```
 ///
 /// # Errors
