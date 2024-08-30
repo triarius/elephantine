@@ -181,6 +181,7 @@ where
     }
 }
 
+/// Get the PIN using the walker binary
 pub fn walker_get_pin(_state: &State) -> std::result::Result<String, GetPinError> {
     std::process::Command::new("walker")
         .arg("--password")
@@ -198,6 +199,7 @@ pub fn walker_get_pin(_state: &State) -> std::result::Result<String, GetPinError
         })
 }
 
+/// Listen for Assuan requests and respond to them
 pub fn listen<F>(input: impl BufRead, output: &mut impl Write, get_pin: F) -> Result<()>
 where
     F: Fn(&State) -> std::result::Result<String, GetPinError> + Copy,
