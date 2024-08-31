@@ -1,26 +1,39 @@
+use clap_serde_derive::{clap::Parser, ClapSerde};
 use color_eyre::Result;
-use elephantine::{listen, walker_get_pin};
+use elephantine::config::Config;
+use elephantine::Listener;
 use std::{
-    env,
-    fs::OpenOptions,
     io::{stdin, stdout, BufReader},
+    path::PathBuf,
 };
 
-fn main() -> Result<()> {
-    let home = env::var("HOME")?;
-    let log_file = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(format!("{home}/elephantine.log"))?;
+/// Implements the pinentry protocol and uses walker for PIN input.
+#[derive(Parser)]
+#[command(version)]
+struct Args {
+    /// The debug level.
+    #[arg(short, long, action = clap::ArgAction::Count)]
+    debug: u8,
 
-    env_logger::Builder::new()
-        .filter_level(log::LevelFilter::Debug)
-        .target(env_logger::Target::Pipe(Box::new(log_file)))
-        .init();
+    /// Path to the configuration file.
+    #[arg(long, value_name = "FILE", default_value = "config.toml")]
+    config_file: PathBuf,
+
+    /// The configuration options.
+    #[command(flatten)]
+    pub config: <Config as ClapSerde>::Opt,
+}
+
+fn main() -> Result<()> {
+    let args = Args::parse();
+
+    let config = if args.config_file.exists() {
+        Config::try_from(&args.config_file)?
+    } else {
+        Config::from(args.config)
+    };
 
     let input = BufReader::new(stdin());
     let mut output = stdout();
-    listen(input, &mut output, walker_get_pin)?;
-
-    Ok(())
+    Listener::new(config).listen(input, &mut output)
 }
