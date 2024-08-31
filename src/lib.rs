@@ -302,6 +302,7 @@ mod test {
                 .into_iter()
                 .map(std::string::ToString::to_string)
                 .collect(),
+            ..Default::default()
         });
 
         listener.listen(input, &mut output).unwrap();
