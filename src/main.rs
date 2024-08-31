@@ -12,11 +12,11 @@ use std::{
 #[command(version)]
 struct Args {
     /// The debug level.
-    #[arg(short, long, action = clap::ArgAction::Count)]
+    #[arg(short, long, env = "ELEPHANTINE_DEBUG", action = clap::ArgAction::Count)]
     debug: u8,
 
     /// Path to the configuration file.
-    #[arg(long, value_name = "FILE", default_value = "config.toml")]
+    #[arg(long, env = "ELEPHANTINE_CONFIG_FILE", value_name = "FILE", default_value = default_config_file())]
     config_file: PathBuf,
 
     /// The configuration options.
@@ -36,4 +36,16 @@ fn main() -> Result<()> {
     let input = BufReader::new(stdin());
     let mut output = stdout();
     Listener::new(config).listen(input, &mut output)
+}
+
+fn default_config_file() -> String {
+    directories::ProjectDirs::from("org", "elephantine", "elephantine").map_or_else(
+        || "elephantine.toml".to_string(),
+        |dirs| {
+            dirs.config_dir()
+                .join("elephantine.toml")
+                .to_string_lossy()
+                .to_string()
+        },
+    )
 }
