@@ -297,11 +297,12 @@ mod test {
 
         let mut output = std::io::Cursor::new(vec![]);
         let mut listener = Listener::new(Config {
-            timeout_in_seconds: None,
+            timeout: None,
             command: vec!["echo", "-n", "1234"]
                 .into_iter()
                 .map(std::string::ToString::to_string)
                 .collect(),
+            ..Default::default()
         });
 
         listener.listen(input, &mut output).unwrap();
