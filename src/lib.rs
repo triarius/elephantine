@@ -182,6 +182,9 @@ where
 }
 
 /// Get the PIN using the walker binary
+///
+/// # Errors
+/// Errors
 pub fn walker_get_pin(_state: &State) -> std::result::Result<String, GetPinError> {
     std::process::Command::new("walker")
         .arg("--password")
@@ -200,6 +203,9 @@ pub fn walker_get_pin(_state: &State) -> std::result::Result<String, GetPinError
 }
 
 /// Listen for Assuan requests and respond to them
+///
+/// # Errors
+/// Errors
 pub fn listen<F>(input: impl BufRead, output: &mut impl Write, get_pin: F) -> Result<()>
 where
     F: Fn(&State) -> std::result::Result<String, GetPinError> + Copy,
@@ -239,6 +245,7 @@ mod test {
     use super::listen;
     use indoc::indoc;
 
+    #[allow(clippy::unnecessary_wraps)]
     fn get_pin(_state: &super::State) -> std::result::Result<String, super::GetPinError> {
         Ok("1234".to_string())
     }
