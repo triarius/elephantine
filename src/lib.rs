@@ -298,7 +298,7 @@ mod test {
         let mut output = std::io::Cursor::new(vec![]);
         let mut listener = Listener::new(Config {
             timeout: None,
-            command: vec!["echo", "-n", "1234"]
+            command: vec!["echo", "1234"]
                 .into_iter()
                 .map(std::string::ToString::to_string)
                 .collect(),
@@ -343,7 +343,7 @@ mod test {
                     OK
                     OK
                     OK
-                    D 1234
+                    D 1234%0A
                     OK
                     OK closing connection
                 "},
