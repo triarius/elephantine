@@ -6,7 +6,7 @@ We aim to implement enough of the Assuan protocol to support this use case.
 
 # Usage
 ```
-Implements the pinentry protocol and uses walker for PIN input
+Implements the pinentry protocol and uses a configurable frontend for PIN input
 
 Usage: elephantine [OPTIONS]
 

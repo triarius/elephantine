@@ -7,7 +7,7 @@ use std::{
     path::PathBuf,
 };
 
-/// Implements the pinentry protocol and uses walker for PIN input.
+/// Implements the pinentry protocol and uses a configurable frontend for PIN input.
 #[derive(Parser)]
 #[command(version)]
 struct Args {
