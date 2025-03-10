@@ -20,7 +20,7 @@ urlencoding = "2.1.3"
 users = "0.11.0"
 
 [dev-dependencies]
-indoc = "2.0.5"
+indoc = "2.0.6"
 
 [build-dependencies]
 built = { git = "https://github.com/lukaslueg/built", rev = "9468c3a117265cc5976bb82631861aa133f32aec" }
