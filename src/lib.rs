@@ -109,7 +109,7 @@ impl Listener {
 
         for line in input.lines() {
             let line = line?;
-            log::debug!("Request: {}", line);
+            log::debug!("Request: {line}");
 
             let req = parse(&line)?;
             match self.handle_req(req) {
