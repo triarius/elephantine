@@ -210,7 +210,7 @@ impl Listener {
             QualitybarTt(m) => self.state.qualitybar_tt = Some(m.to_string()),
             Genpin(m) => self.state.genpin = Some(m.to_string()),
             GenpinTt(m) => self.state.genpin_tt = Some(m.to_string()),
-        };
+        }
         vec![Response::Ok(None)]
     }
 
