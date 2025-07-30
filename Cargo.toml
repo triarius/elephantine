@@ -28,5 +28,4 @@ built = "0.8.0"
 [lints.clippy]
 all = "deny"
 pedantic = "deny"
-single_match_else = { level = "allow", priority = 1 }
 enum_glob_use = { level = "allow", priority = 1 }
