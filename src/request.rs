@@ -97,7 +97,7 @@ pub fn parse(s: &str) -> Result<Request<'_>, Error> {
     })
 }
 
-fn parse_command(s: &str) -> IResult<&str, Request> {
+fn parse_command(s: &str) -> IResult<&str, Request<'_>> {
     let (s, (cmd, _)) = tuple((
         alt((
             parse_set,
@@ -198,7 +198,7 @@ fn parse_set_qualitybar(s: &str) -> IResult<&str, Set<'_>> {
     )(s)
 }
 
-fn parse_set(s: &str) -> IResult<&str, Request> {
+fn parse_set(s: &str) -> IResult<&str, Request<'_>> {
     map(
         preceded(
             tag("SET"),
@@ -222,14 +222,14 @@ fn parse_set(s: &str) -> IResult<&str, Request> {
     )(s)
 }
 
-fn parse_get(s: &str) -> IResult<&str, Request> {
+fn parse_get(s: &str) -> IResult<&str, Request<'_>> {
     preceded(
         tag("GET"),
         alt((map(tag("PIN"), |_| Request::GetPin), parse_get_info)),
     )(s)
 }
 
-fn parse_get_info(s: &str) -> IResult<&str, Request> {
+fn parse_get_info(s: &str) -> IResult<&str, Request<'_>> {
     preceded(
         terminated(tag("INFO"), space1),
         alt((
@@ -241,7 +241,7 @@ fn parse_get_info(s: &str) -> IResult<&str, Request> {
     )(s)
 }
 
-fn parse_confirm(s: &str) -> IResult<&str, Request> {
+fn parse_confirm(s: &str) -> IResult<&str, Request<'_>> {
     preceded(
         tag("CONFIRM"),
         alt((
@@ -257,7 +257,7 @@ fn not_whitespace_nor_char(c: char) -> impl Fn(&str) -> IResult<&str, &str> {
     move |s| take_till(|d: char| d.is_whitespace() || d == c)(s)
 }
 
-fn parse_option(s: &str) -> IResult<&str, Request> {
+fn parse_option(s: &str) -> IResult<&str, Request<'_>> {
     map(
         preceded(
             tuple((tag("OPTION"), space1)),
