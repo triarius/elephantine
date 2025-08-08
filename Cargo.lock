@@ -99,8 +99,7 @@ checksum = "b048fb63fd8b5923fc5aa7b340d8e156aec7ec02f0c78fa8a6ddc2613f6f71de"
 [[package]]
 name = "built"
 version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f4ad8f11f288f48ca24471bbd51ac257aaeaaa07adae295591266b792902ae64"
+source = "git+https://github.com/triarius/built.git#fbeb37b1409f505e7de4ead48f2bf627b23174e3"
 
 [[package]]
 name = "cc"
