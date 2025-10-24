@@ -23,7 +23,7 @@ users = "0.11.0"
 indoc = "2.0.6"
 
 [build-dependencies]
-built = { version = "0.8.0", git = "https://github.com/triarius/built.git" }
+built = { branch = "master", git = "https://github.com/lukaslueg/built.git" }
 
 [lints.clippy]
 all = "deny"
