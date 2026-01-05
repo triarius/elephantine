@@ -99,7 +99,7 @@ checksum = "b048fb63fd8b5923fc5aa7b340d8e156aec7ec02f0c78fa8a6ddc2613f6f71de"
 [[package]]
 name = "built"
 version = "0.8.0"
-source = "git+https://github.com/lukaslueg/built.git?branch=master#70f22b6d1a48d2e050c0802fbeae3da2bb978e80"
+source = "git+https://github.com/lukaslueg/built.git?branch=master#45e4d704c1ea0a94ffbafd795db694ff0bd53361"
 
 [[package]]
 name = "cc"
