@@ -4,8 +4,8 @@ use nom::{
     character::complete::{not_line_ending, space0, space1, u64},
     combinator::{eof, map, map_res, opt},
     error::Error as NomError,
-    sequence::{preceded, separated_pair, terminated, tuple},
-    IResult,
+    sequence::{preceded, separated_pair, terminated},
+    IResult, Parser,
 };
 use paste::paste;
 use std::{
@@ -98,7 +98,7 @@ pub fn parse(s: &str) -> Result<Request<'_>, Error> {
 }
 
 fn parse_command(s: &str) -> IResult<&str, Request<'_>> {
-    let (s, (cmd, _)) = tuple((
+    let (s, (cmd, _)) = (
         alt((
             parse_set,
             parse_get,
@@ -115,7 +115,8 @@ fn parse_command(s: &str) -> IResult<&str, Request<'_>> {
             map(tag("NOP"), |_| Request::Nop),
         )),
         eof,
-    ))(s)?;
+    )
+        .parse(s)?;
     Ok((s, cmd))
 }
 
@@ -129,7 +130,7 @@ macro_rules! gen_parse_set {
                         map_res(not_line_ending, decode),
                     ),
                     Set::[<$x:camel>],
-                )(s)
+                ).parse(s)
             }
         }
     };
@@ -150,7 +151,8 @@ fn parse_set_timeout(s: &str) -> IResult<&str, Set<'_>> {
     map(
         preceded(terminated(tag("TIMEOUT"), space1), u64),
         Set::Timeout,
-    )(s)
+    )
+    .parse(s)
 }
 
 fn parse_set_repeat(s: &str) -> IResult<&str, Set<'_>> {
@@ -176,7 +178,8 @@ fn parse_set_repeat(s: &str) -> IResult<&str, Set<'_>> {
                 Set::Repeatok,
             ),
         )),
-    )(s)
+    )
+    .parse(s)
 }
 
 fn parse_set_qualitybar(s: &str) -> IResult<&str, Set<'_>> {
@@ -195,7 +198,8 @@ fn parse_set_qualitybar(s: &str) -> IResult<&str, Set<'_>> {
                 Set::QualitybarTt,
             ),
         )),
-    )(s)
+    )
+    .parse(s)
 }
 
 fn parse_set(s: &str) -> IResult<&str, Request<'_>> {
@@ -219,14 +223,16 @@ fn parse_set(s: &str) -> IResult<&str, Request<'_>> {
             )),
         ),
         Request::Set,
-    )(s)
+    )
+    .parse(s)
 }
 
 fn parse_get(s: &str) -> IResult<&str, Request<'_>> {
     preceded(
         tag("GET"),
         alt((map(tag("PIN"), |_| Request::GetPin), parse_get_info)),
-    )(s)
+    )
+    .parse(s)
 }
 
 fn parse_get_info(s: &str) -> IResult<&str, Request<'_>> {
@@ -238,7 +244,8 @@ fn parse_get_info(s: &str) -> IResult<&str, Request<'_>> {
             map(tag("ttyinfo"), |_| Request::GetInfoTtyinfo),
             map(tag("pid"), |_| Request::GetInfoPid),
         )),
-    )(s)
+    )
+    .parse(s)
 }
 
 fn parse_confirm(s: &str) -> IResult<&str, Request<'_>> {
@@ -250,23 +257,24 @@ fn parse_confirm(s: &str) -> IResult<&str, Request<'_>> {
             }),
             map(eof, |_| Request::Confirm),
         )),
-    )(s)
+    )
+    .parse(s)
 }
 
 fn not_whitespace_nor_char(c: char) -> impl Fn(&str) -> IResult<&str, &str> {
-    move |s| take_till(|d: char| d.is_whitespace() || d == c)(s)
+    move |s| take_till(|d: char| d.is_whitespace() || d == c).parse(s)
 }
 
 fn parse_option(s: &str) -> IResult<&str, Request<'_>> {
     map(
         preceded(
-            tuple((tag("OPTION"), space1)),
+            (tag("OPTION"), space1),
             map(
                 preceded(
                     opt(tag("--")),
                     separated_pair(
                         map_res(not_whitespace_nor_char('='), decode),
-                        tuple((space0, opt(tag("=")), space0)),
+                        (space0, opt(tag("=")), space0),
                         opt(map_res(not_line_ending, decode)),
                     ),
                 ),
@@ -277,7 +285,8 @@ fn parse_option(s: &str) -> IResult<&str, Request<'_>> {
             ),
         ),
         Request::Option,
-    )(s)
+    )
+    .parse(s)
 }
 
 #[cfg(test)]
