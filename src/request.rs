@@ -4,7 +4,7 @@ use nom::{
     character::complete::{not_line_ending, space0, space1, u64},
     combinator::{eof, map, map_res, opt},
     error::Error as NomError,
-    sequence::{preceded, separated_pair, terminated, tuple},
+    sequence::{preceded, separated_pair, terminated},
     IResult, Parser,
 };
 use paste::paste;
@@ -98,7 +98,7 @@ pub fn parse(s: &str) -> Result<Request<'_>, Error> {
 }
 
 fn parse_command(s: &str) -> IResult<&str, Request<'_>> {
-    let (s, (cmd, _)) = tuple((
+    let (s, (cmd, _)) = (
         alt((
             parse_set,
             parse_get,
@@ -115,8 +115,8 @@ fn parse_command(s: &str) -> IResult<&str, Request<'_>> {
             map(tag("NOP"), |_| Request::Nop),
         )),
         eof,
-    ))
-    .parse(s)?;
+    )
+        .parse(s)?;
     Ok((s, cmd))
 }
 
@@ -268,13 +268,13 @@ fn not_whitespace_nor_char(c: char) -> impl Fn(&str) -> IResult<&str, &str> {
 fn parse_option(s: &str) -> IResult<&str, Request<'_>> {
     map(
         preceded(
-            tuple((tag("OPTION"), space1)),
+            (tag("OPTION"), space1),
             map(
                 preceded(
                     opt(tag("--")),
                     separated_pair(
                         map_res(not_whitespace_nor_char('='), decode),
-                        tuple((space0, opt(tag("=")), space0)),
+                        (space0, opt(tag("=")), space0),
                         opt(map_res(not_line_ending, decode)),
                     ),
                 ),
