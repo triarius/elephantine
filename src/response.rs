@@ -17,11 +17,7 @@ impl Display for Response {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         use Response::*;
         match self {
-            Ok(s) => write!(
-                f,
-                "OK{}",
-                s.as_ref().map(|s| format!(" {s}")).unwrap_or_default(),
-            ),
+            Ok(s) => write!(f, "OK{}", s.as_ref().map_or_default(|s| format!(" {s}"))),
             Err(code, msg) => write!(f, "ERR {code} {msg}"),
             D(s) => write!(f, "D {}", escape(s)),
             Comment(s) => write!(f, "# {s}"),
